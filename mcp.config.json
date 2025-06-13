@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "tick": {
+      "command": "python3",
+      "args": ["main.py"],
+      "env": {
+        "TICK_API_TOKEN": "your-token-here",
+        "TICK_SUBDOMAIN": "your-subdomain"
+      }
+    }
+  }
+}
