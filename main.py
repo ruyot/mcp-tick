@@ -1,5 +1,6 @@
 import os
-import requests
+import aiohttp
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from fastmcp import FastMCP
@@ -133,11 +134,6 @@ class TickAPI:
     async def get_users(self) -> List[Dict[str, Any]]:
         """Get all users"""
         url = f"{BASE_URL}/users.json"
-        return await self.make_request(url)
-    
-    async def get_roles(self) -> List[Dict[str, Any]]:
-        """Get user roles"""
-        url = f"{BASE_URL}/roles.json"
         return await self.make_request(url)
 
 # Initialize API client
@@ -576,6 +572,69 @@ async def get_team_overview() -> Dict[str, Any]:
         
     except Exception as e:
         return {"error": f"Failed to fetch team overview: {str(e)}"}
+
+# Add helper functions for Google Sheets integration
+@mcp.tool()
+async def get_time_entries_for_sheets(
+    project: str = None,
+    start_date: str = None,
+    end_date: str = None,
+    format_for_sheets: bool = True
+) -> Dict[str, Any]:
+    """
+    Get time entries formatted specifically for Google Sheets import.
+    Returns data in a format that can be easily written to sheets.
+    
+    Args:
+        project: Project name (optional, partial match, case insensitive)
+        start_date: Start date in YYYY-MM-DD format (optional)
+        end_date: End date in YYYY-MM-DD format (optional)
+        format_for_sheets: Whether to format data for sheets (default: True)
+    
+    Returns:
+        Dictionary containing formatted data for sheets import
+    """
+    try:
+        # Get time entries using existing function
+        result = await get_time_entries(project, start_date, end_date)
+        
+        if "error" in result:
+            return result
+        
+        if not format_for_sheets:
+            return result
+        
+        # Format for sheets - create 2D array structure
+        headers = ["Date", "Project", "Task", "User", "Hours", "Notes", "Client"]
+        rows = [headers]
+        
+        for entry in result.get("entries", []):
+            row = [
+                entry.get("date", ""),
+                entry.get("project", {}).get("name", ""),
+                entry.get("task", {}).get("name", ""),
+                f"{entry.get('user', {}).get('first_name', '')} {entry.get('user', {}).get('last_name', '')}".strip(),
+                entry.get("hours", 0),
+                entry.get("notes", ""),
+                entry.get("project", {}).get("client", {}).get("name", "")
+            ]
+            rows.append(row)
+        
+        return {
+            "success": True,
+            "sheet_data": rows,
+            "total_rows": len(rows),
+            "headers": headers,
+            "summary": {
+                "total_entries": result.get("total_entries", 0),
+                "total_hours": result.get("total_hours", 0),
+                "date_range": result.get("date_range", ""),
+                "project": result.get("project", "")
+            }
+        }
+        
+    except Exception as e:
+        return {"error": f"Failed to format time entries for sheets: {str(e)}"}
 
 if __name__ == "__main__":
     mcp.run()
